@@ -40,6 +40,8 @@ fn image_data_to_frame(img: image::DynamicImage) -> Vec<u8> {
     for (idx, row) in img.into_rgba8().rows().enumerate() {
         let mut frame_row = Vec::new();
 
+        let is_reverse_row = idx % 2 == 0;
+
         for pixel in row {
             let a: f32 = pixel.alpha() as _;
             let rgb = pixel.channels();
@@ -51,12 +53,18 @@ fn image_data_to_frame(img: image::DynamicImage) -> Vec<u8> {
             g = g * a / 255.0;
             b = b * a / 255.0;
 
-            frame_row.push(r as u8);
-            frame_row.push(g as u8);
-            frame_row.push(b as u8);
+            if is_reverse_row {
+                frame_row.push(b as u8);
+                frame_row.push(g as u8);
+                frame_row.push(r as u8);
+            } else {
+                frame_row.push(r as u8);
+                frame_row.push(g as u8);
+                frame_row.push(b as u8);
+            }
         }
 
-        if idx % 2 == 0 {
+        if is_reverse_row {
             frame_row.reverse();
         }
 
