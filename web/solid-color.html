@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Nightstand Lamp++</title>
+        <link rel="stylesheet" href="/static/styles.css">
+    </head>
+
+    <body>
+        <div id="tainer">
+            <div id="header">
+                <img class="flexed" src="/static/lamp.png" />
+                Nightstand Lamp++
+            </div>
+
+            <div id="mode-switcher">
+                <button class="mode-switcher-button" id="btn_mode_immediate">
+                    Set image
+                </button>
+
+                <button class="mode-switcher-button active" id="btn_mode_solid_color">
+                    Solid color
+                </button>
+
+                <button class="mode-switcher-button" id="btn_mode_template">
+                    Pick from template
+                </button>
+            </div>
+
+            <div id="sc_tainer">
+                <div id="sc_color_picker_outer">
+                    <div id="sc_color_picker_colors">
+                        <div id="sc_color_picker">
+                            <canvas id="color_space" width=500 height=500></canvas>
+                            <canvas id="value_bar" width=10 height=500></canvas>
+                        </div>
+
+                        <canvas id="sc_preview" width=1 height=1></canvas>
+                    </div>
+
+                    <div id="sc_rgb_hsv">
+                        <span>R</span> <input type="number" min="0" max="255" id="color_r"/>
+                        <span>G</span> <input type="number" min="0" max="255" id="color_g" />
+                        <span>B</span> <input type="number" min="0" max="255" id="color_b" />
+
+                        <div class="v-spacer"></div><div></div>
+
+                        <span>H</span> <input type="number" min="0" max="359" id="color_h"/>
+                        <span>S</span> <input type="number" min="0" max="100" id="color_s" />
+                        <span>V</span> <input type="number" min="0" max="100" id="color_v" />
+                    </div>
+                </div>
+            </div>
+
+            <button id='btn_upload_to_lamp'>
+                Upload to lamp!
+            </button>
+            <button id='btn_upload_to_lamp_smoothly'>
+                Upload to lamp smoothly!
+            </button>
+
+            <div id="error_message_box" class="error-message">
+            </div>
+        </div>
+
+        <script src="/static/common.js"></script>
+
+        <script>
+            const XHAIR_THICKNESS = 4;
+            const XHAIR_HALF_THICKNESS = XHAIR_THICKNESS / 2;
+            const XHAIR_LENGTH = 6;
+            const XHAIR_OFFSET = 2;
+
+            let current_h = 180;
+            let current_s = 0.5;
+            let current_v = 1;
+
+            let current_r = hsv2rgb(current_h, current_s, current_v).r;
+            let current_g = hsv2rgb(current_h, current_s, current_v).g;
+            let current_b = hsv2rgb(current_h, current_s, current_v).b;
+
+            let last_uploaded_h = current_h;
+            let last_uploaded_s = current_s;
+            let last_uploaded_v = current_v;
+
+            let colorSpaceMouseDown = false;
+            let valueBarMouseDown = false;
+
+            function clearError() {
+                error_message_box.innerText = '';
+            }
+
+            function displayError(error) {
+                error_message_box.innerText = `Error: ${error}`;
+            }
+
+            function hsv2rgb(h, s, v) {
+                const f = (n, k = (n + h / 60) % 6) => v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
+                return { r: f(5) * 255, g: f(3) * 255, b: f(1) * 255 };
+            }
+
+            function rgb2hsv(r, g, b) {
+                const rabs = r / 255;
+                const gabs = g / 255;
+                const babs = b / 255;
+                const v = Math.max(rabs, gabs, babs);
+                const diff = v - Math.min(rabs, gabs, babs);
+                const diffc = (c) => (v - c) / 6 / diff + 1 / 2;
+
+                let h = 0;
+                let s = 0;
+
+                if (diff !== 0) {
+                    s = diff / v;
+                    const rr = diffc(rabs);
+                    const gg = diffc(gabs);
+                    const bb = diffc(babs);
+
+                    if (rabs === v) {
+                        h = bb - gg;
+                    } else if (gabs === v) {
+                        h = (1 / 3) + rr - bb;
+                    } else if (babs === v) {
+                        h = (2 / 3) + gg - rr;
+                    }
+
+                    if (h < 0) {
+                        h += 1;
+                    } else if (h > 1) {
+                        h -= 1;
+                    }
+                }
+
+                return { h: h * 360, s, v };
+            }
+
+            function drawColorSpace() {
+                const hueStep = 360 / color_space.width;
+                const satStep = 1 / color_space.height;
+
+                const ctx = color_space.getContext('2d');
+
+                for (let hue = 0, x = 0; hue < 360; hue += hueStep, x++) {
+                    for (let sat = 1, y = 0; sat >= 0; sat -= satStep, y++) {
+                        const { r, g, b } = hsv2rgb(hue, sat, 1.0);
+
+                        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            }
+
+            function drawColorSpaceCrosshair() {
+                const hueStepInv = color_space.width / 360;
+                const satStepInv = color_space.height;
+
+                const ctx = color_space.getContext('2d');
+
+                const x = current_h * hueStepInv;
+                const y = (1 - current_s) * satStepInv;
+
+                ctx.fillStyle = '#000000';
+
+                ctx.fillRect(x - XHAIR_LENGTH - XHAIR_OFFSET, y - XHAIR_HALF_THICKNESS,        XHAIR_LENGTH,    XHAIR_THICKNESS);
+                ctx.fillRect(x - XHAIR_HALF_THICKNESS,        y - XHAIR_LENGTH - XHAIR_OFFSET, XHAIR_THICKNESS, XHAIR_LENGTH);
+                ctx.fillRect(x + XHAIR_OFFSET,                y - XHAIR_HALF_THICKNESS,        XHAIR_LENGTH,    XHAIR_THICKNESS);
+                ctx.fillRect(x - XHAIR_HALF_THICKNESS,        y + XHAIR_OFFSET,                XHAIR_THICKNESS, XHAIR_LENGTH);
+            }
+
+            function drawValueBar() {
+                const valStep = 1 / value_bar.height;
+                const width = value_bar.width;
+
+                const ctx = value_bar.getContext('2d');
+
+                for (let val = 1, y = 0; val >= 0; val -= valStep, y++) {
+                    const { h, s } = rgb2hsv(current_r, current_g, current_b);
+                    const { r, g, b } = hsv2rgb(h, s, val);
+
+                    ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                    ctx.fillRect(0, y, width, 1);
+                }
+            }
+
+            function drawValueBarCrosshair() {
+                const THICKNESS = 4;
+                const HALF_THICKNESS = THICKNESS / 2;
+
+                const valStep = value_bar.height;
+
+                const ctx = value_bar.getContext('2d');
+
+                const y = (1 - current_v) * valStep;
+                const half_w = value_bar.width / 2;
+
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, y - HALF_THICKNESS, half_w, THICKNESS);
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(half_w + 1, y - HALF_THICKNESS, half_w - 1, THICKNESS);
+            }
+
+            function eraseColorSpaceCrosshair(h, s) {
+                const hueStepInv = color_space.width / 360;
+                const satStepInv = color_space.height;
+                const hueStep = 360 / color_space.width;
+                const satStep = 1 / color_space.height;
+
+                const fx = Math.floor(h * hueStepInv - XHAIR_LENGTH - XHAIR_OFFSET);
+                const fy = Math.floor((1 - s) * satStepInv - XHAIR_LENGTH - XHAIR_OFFSET);
+                const tx = Math.ceil(fx + (XHAIR_LENGTH + XHAIR_OFFSET) * 2);
+                const ty = Math.ceil(fy + (XHAIR_LENGTH + XHAIR_OFFSET) * 2);
+
+                const ctx = color_space.getContext('2d');
+                for (let hue = fx * hueStep, x = fx; x <= tx; x++, hue += hueStep) {
+                    for (let sat = (color_space.height - fy) * satStep, y = fy; y <= ty; y++, sat -= satStep) {
+                        const { r, g, b } = hsv2rgb(hue, sat, 1);
+
+                        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            }
+
+            function updateColorPicker() {
+                drawColorSpaceCrosshair();
+
+                drawValueBar();
+                drawValueBarCrosshair();
+            }
+
+            function updateCurrentColorRgb(r, g, b) {
+                eraseColorSpaceCrosshair(current_h, current_s);
+
+                current_r = r;
+                current_g = g;
+                current_b = b;
+
+                const { h, s, v } = rgb2hsv(current_r, current_g, current_b);
+                current_h = h;
+                current_s = s;
+                current_v = v;
+
+                redrawEverything();
+            }
+
+            function updateCurrentColorHsv(h, s, v) {
+                eraseColorSpaceCrosshair(current_h, current_s);
+
+                current_h = h;
+                current_s = s;
+                current_v = v;
+
+                const { r, g, b } = hsv2rgb(current_h, current_s, current_v);
+                current_r = r;
+                current_g = g;
+                current_b = b;
+
+                redrawEverything();
+            }
+
+            function redrawEverything() {
+                const ctx = sc_preview.getContext('2d');
+                ctx.fillStyle = `rgb(${current_r}, ${current_g}, ${current_b})`;
+                ctx.fillRect(0, 0, 1, 1);
+
+                updateColorPicker();
+                updateNumericInput();
+            }
+
+            function updateNumericInput() {
+                color_r.value = Math.round(current_r);
+                color_g.value = Math.round(current_g);
+                color_b.value = Math.round(current_b);
+
+                color_h.value = Math.round(current_h);
+                color_s.value = Math.round(current_s * 100);
+                color_v.value = Math.round(current_v * 100);
+            }
+
+            function updateHueSatFromCursor(cursorX, cursorY) {
+                const brect = color_space.getBoundingClientRect();
+                const hueStep = 360 / brect.width;
+                const satStep = 1 / brect.height;
+
+                const xR = cursorX - brect.x;
+                const yR = cursorY - brect.y;
+
+                const hue = xR * hueStep;
+                const sat = 1 - (yR * satStep);
+
+                updateCurrentColorHsv(hue, sat, current_v);
+            }
+
+            function updateValFromCursor(cursorY) {
+                const brect = value_bar.getBoundingClientRect();
+                const valStep = 1 / brect.height;
+
+                const val = 1 - ((cursorY - brect.y) * valStep);
+
+                updateCurrentColorHsv(current_h, current_s, val);
+            }
+
+            async function uploadColorToLamp(r, g, b) {
+                r = Math.round(r);
+                g = Math.round(g);
+                b = Math.round(b);
+                const resp = await fetch(`/solid-color/instant/${r}/${g}/${b}`, { method: 'POST' });
+
+                last_uploaded_h = current_h;
+                last_uploaded_s = current_s;
+                last_uploaded_v = current_v;
+
+                if (!resp.ok) {
+                    const reason = await resp.text();
+                    displayError(reason);
+                    console.error(resp);
+
+                    return false;
+                }
+
+                return true;
+            }
+
+            color_space.onclick = (ev) => {
+                updateHueSatFromCursor(ev.clientX, ev.clientY);
+            };
+            value_bar.onclick = (ev) => {
+                updateValFromCursor(ev.clientY);
+            };
+
+            color_space.onmousedown = () => {
+                colorSpaceMouseDown = true;
+            };
+            color_space.onmouseup = () => {
+                colorSpaceMouseDown = false;
+            };
+            color_space.onmousemove = (ev) => {
+                if (!colorSpaceMouseDown) return;
+
+                updateHueSatFromCursor(ev.clientX, ev.clientY);
+            };
+
+            value_bar.onmousedown = () => {
+                valueBarMouseDown = true;
+            };
+            value_bar.onmouseup = () => {
+                valueBarMouseDown = false;
+            };
+            value_bar.onmousemove = (ev) => {
+                if (!valueBarMouseDown) return;
+
+                updateValFromCursor(ev.clientY);
+            };
+
+            color_r.onchange = (ev) => {
+                updateCurrentColorRgb(parseInt(ev.target.value), current_g, current_b);
+            };
+            color_g.onchange = (ev) => {
+                updateCurrentColorRgb(current_r, parseInt(ev.target.value), current_b);
+            };
+            color_b.onchange = (ev) => {
+                updateCurrentColorRgb(current_r, current_g, parseInt(ev.target.value));
+            };
+            color_h.onchange = (ev) => {
+                updateCurrentColorHsv(parseInt(ev.target.value), current_s, current_v);
+            };
+            color_s.onchange = (ev) => {
+                updateCurrentColorHsv(current_h, parseInt(ev.target.value) / 100, current_v);
+            };
+            color_v.onchange = (ev) => {
+                updateCurrentColorHsv(current_h, current_s, parseInt(ev.target.value) / 100);
+            };
+
+            btn_upload_to_lamp.onclick = async () => {
+                clearError();
+
+                uploadColorToLamp(current_r, current_g, current_b);
+            };
+
+            btn_upload_to_lamp_smoothly.onclick = async () => {
+                const steps = 30;
+
+                const dH = (current_h - last_uploaded_h) / steps;
+                const dS = (current_s - last_uploaded_s) / steps;
+                const dV = (current_v - last_uploaded_v) / steps;
+
+                const payload = [];
+                for (let step = 1; step < steps; step++) {
+                    const h = last_uploaded_h + dH * step;
+                    const s = last_uploaded_s + dS * step;
+                    const v = last_uploaded_v + dV * step;
+
+                    const { r, g, b } = hsv2rgb(h, s, v);
+                    payload.push([Math.round(r), Math.round(g), Math.round(b)]);
+                };
+
+                last_uploaded_h = current_h;
+                last_uploaded_s = current_s;
+                last_uploaded_v = current_v;
+
+                clearError();
+
+                const resp = await fetch('/solid-color/smooth', {
+                    method: 'POST',
+                    body: JSON.stringify(payload),
+                    headers: new Headers({
+                        'Content-Type': 'application/json'
+                    }),
+                });
+
+                if (!resp.ok) {
+                    const reason = await resp.text();
+                    displayError(reason);
+                    console.error(resp);
+                }
+            };
+
+            drawColorSpace();
+            updateCurrentColorRgb(current_r, current_g, current_b);
+        </script>
+    </body>
+ </html>
