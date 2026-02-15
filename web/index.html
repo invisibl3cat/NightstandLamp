@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Nightstand Lamp++</title>
+        <link rel="stylesheet" href="/static/styles.css">
+    </head>
+
+    <body>
+        <div id="tainer">
+            <div id="header">
+                <img class="flexed" src="/static/lamp.png" />
+                Nightstand Lamp++
+            </div>
+
+            <div id="mode-switcher">
+                <button class="mode-switcher-button active" id="btn_mode_immediate">
+                    Set image
+                </button>
+
+                <button class="mode-switcher-button" id="btn_mode_solid_color">
+                    Solid color
+                </button>
+
+                <button class="mode-switcher-button" id="btn_mode_template">
+                    Pick from template
+                </button>
+            </div>
+
+            <div id="immediate-control">
+                <div id="immediate-pick-image">
+                    <input
+                        type="file"
+                        id="image_to_display"
+                        name="image_to_display"
+                    />
+                    <button id="btn_pick_image_file">
+                        Pick image to display
+                    </button>
+                </div>
+
+                <div class="image-preview">
+                    <img class="image-preview-item empty" id="image_original" src="" />
+                    <div></div>
+                    <img class="image-preview-item empty" id="image_resampled" src="" />
+                </div>
+
+                <div id="immediate-buttons">
+                    <button id='btn_upload_to_lamp'>
+                        Upload to lamp!
+                    </button>
+
+                    <button id='btn_save_as_template'>
+                        Save as template
+                    </button>
+                </div>
+
+                <div id="error_message_box" class="error-message">
+                </div>
+            </div>
+        </div>
+
+        <script src="/static/common.js"></script>
+
+        <script>
+            function clearError() {
+                error_message_box.innerText = '';
+            }
+
+            function displayError(error) {
+                error_message_box.innerText = `Error: ${error}`;
+            }
+
+            async function getResampledImage(imageFile) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = async () => {
+                        const imageData = reader.result;
+
+                        try {
+                            const resp = await postImage('/resample-image', imageData);
+
+                            if (resp.ok) {
+                                const resampledBytes = await resp.bytes();
+                                resolve(resampledBytes);
+                            } else {
+                                const reason = await resp.text();
+                                reject(reason);
+                            }
+                        } catch(e) {
+                            reject(e.toString());
+                        }
+                    };
+                    reader.readAsArrayBuffer(imageFile);
+                });
+            }
+
+            btn_pick_image_file.onclick = () => {
+                image_to_display.click();
+            };
+
+            image_to_display.addEventListener('change', () => {
+                clearError();
+
+                const f = image_to_display.files[0];
+
+                btn_pick_image_file.innerText = `Pick image to display (${f.name})`;
+
+                const reader = new FileReader();
+                reader.onload = () => {
+                    URL.revokeObjectURL(image_original.src);
+
+                    const dataUri = reader.result;
+                    image_original.src = dataUri;
+                };
+                reader.readAsDataURL(f);
+
+                getResampledImage(f).then((resampledImage) => {
+                    setImageUrl(image_resampled, resampledImage);
+                }).catch((e) => {
+                    const reason = e.toString();
+
+                    displayError(reason);
+                    console.log(e);
+                });
+
+                image_original.classList.remove('empty');
+                image_resampled.classList.remove('empty');
+            });
+
+            btn_upload_to_lamp.onclick = () => {
+                clearError();
+
+                const f = image_to_display.files[0];
+                if (f) {
+                    const reader = new FileReader();
+                    reader.onload = async () => {
+                        const imageData = reader.result;
+
+                        try {
+                            const resp = await postImage('/upload-image', imageData);
+                            if (resp.ok) {
+                                console.log('uploaded');
+                            } else {
+                                const reason = await resp.text();
+
+                                displayError(reason);
+                                console.error(reason);
+                            }
+                        } catch(e) {
+                            const reason = e.toString();
+
+                            displayError(reason);
+                            console.error(e.toString());
+                        }
+                    };
+                    reader.readAsArrayBuffer(f);
+                }
+            };
+
+            btn_save_as_template.onclick = () => {
+                const f = image_to_display.files[0];
+
+                if (f) {
+                    const name = window.prompt('Enter the name for the template', '');
+                    if (!name) {
+                        displayError('Template must have a name');
+                        return;
+                    }
+
+                    const reader = new FileReader();
+                    reader.onload = async () => {
+                        const imageData = reader.result;
+
+                        try {
+                            const resp = await postImage(`/template/save/${name}`, imageData);
+                            if (resp.ok) {
+                                console.log('saved');
+                            } else {
+                                const reason = await resp.text();
+
+                                displayError(reason);
+                                console.error(reason);
+                            }
+                        } catch(e) {
+                            const reason = e.toString();
+
+                            displayError(reason);
+                            console.error(e.toString());
+                        }
+                    };
+                    reader.readAsArrayBuffer(f);
+                }
+            };
+        </script>
+    </body>
+</html>

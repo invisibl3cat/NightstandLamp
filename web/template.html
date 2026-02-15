@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Nightstand Lamp++</title>
+        <link rel="stylesheet" href="/static/styles.css">
+    </head>
+
+    <body>
+        <div id="tainer">
+            <div id="header">
+                <img class="flexed" src="/static/lamp.png" />
+                Nightstand Lamp++
+            </div>
+
+            <div id="mode-switcher">
+                <button class="mode-switcher-button" id="btn_mode_immediate">
+                    Set image
+                </button>
+
+                <button class="mode-switcher-button" id="btn_mode_solid_color">
+                    Solid color
+                </button>
+
+                <button class="mode-switcher-button active" id="btn_mode_template">
+                    Pick from template
+                </button>
+            </div>
+
+            <div id="templates">
+                <div id="available_templates">
+                </div>
+
+                <div id="template_image_tainer">
+                    <img id="template_image" class="empty" src="" />
+
+                    <div id="template_buttons">
+                        <button id="btn_upload_to_lamp">
+                            Upload to lamp!
+                        </button>
+
+                        <button id="btn_delete_template">
+                            Delete template
+                        </button>
+                    </div>
+
+                    <div id="error_message_box" class="error-message">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="/static/common.js"></script>
+
+        <script>
+            function clearError() {
+                error_message_box.innerText = '';
+            }
+
+            function displayError(error) {
+                error_message_box.innerText = `Error: ${error}`;
+            }
+
+            async function activateTemplate(name) {
+                try {
+                    const resp = await fetch(`/template/load/${name}`);
+                    if (resp.ok) {
+                        const bytes = await resp.bytes();
+
+                        setImageUrl(template_image, bytes);
+                        template_image.classList.remove('empty');
+                        activeTemplate = name;
+                    } else {
+                        const reason = await resp.text();
+
+                        displayError(reason);
+                        console.log(reason);
+                    }
+                } catch (e) {
+                    displayError(reason);
+                    console.log(e);
+                }
+            }
+
+            async function loadTemplateList() {
+                try {
+                    const resp = await fetch('/template/list');
+                    if (resp.ok) {
+                        const availTemplates = await resp.json();
+
+                        available_templates.replaceChildren();
+
+                        for (const temp of availTemplates) {
+                            const btn = document.createElement('button');
+                            btn.classList.add('template-list-item');
+                            btn.innerText = temp;
+                            btn.onclick = () => {
+                                activateTemplate(temp);
+
+                                for (const child of available_templates.children) {
+                                    child.classList.remove('active');
+                                }
+                                btn.classList.add('active');
+                            };
+
+                            available_templates.appendChild(btn);
+                        }
+                    } else {
+                        const reason = await resp.text();
+
+                        displayError(reason);
+                        console.log(reason);
+                    }
+                } catch (e) {
+                    displayError(e.toString());
+                    console.log(e);
+                }
+            }
+
+            btn_upload_to_lamp.onclick = async () => {
+                if (!activeTemplate) return;
+
+                try {
+                    const resp = await fetch(`/template/upload/${activeTemplate}`, { method: 'POST' });
+                    if (resp.ok) {
+                    } else {
+                        const reason = await resp.text();
+
+                        displayError(reason);
+                        console.log(reason);
+                    }
+                } catch (e) {
+                    displayError(e.toString());
+                    console.log(e);
+                }
+
+            }
+
+            btn_delete_template.onclick = async () => {
+                if (!activeTemplate) return;
+
+                const confirmed = window.confirm('Really delete template?');
+                if (!confirmed) return;
+
+                try {
+                    const resp = await fetch(`/template/delete/${activeTemplate}`, { method: 'POST' });
+                    if (resp.ok) {
+                        activeTemplate = null;
+                        URL.revokeObjectURL(template_image.src);
+                        template_image.src = '';
+                        template_image.classList.add('empty');
+
+                        loadTemplateList();
+                    } else {
+                        const reason = await resp.text();
+
+                        displayError(reason);
+                        console.log(reason);
+                    }
+                } catch (e) {
+                    displayError(e.toString());
+                    console.log(e);
+                }
+            };
+
+            let activeTemplate = null;
+
+            loadTemplateList();
+        </script>
+    </body>
+</html>
