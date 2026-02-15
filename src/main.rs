@@ -188,10 +188,17 @@ async fn route_template_delete(
 async fn route_template_list(
     State(state): State<AppState>
 ) -> Response<Body> {
-    let templates = templates::list_templates(&state.templates);
+    match templates::list_templates(&state.templates) {
+        Ok(templates) => {
+            let json = serde_json::to_string(&templates).unwrap();
+            respond_json(json).into_response()
+        },
+        Err(e) => {
+            error!("Failed to retrieve list of templates: {}", e);
+            respond_error(http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response()
+        },
+    }
 
-    let json = serde_json::to_string(&templates).unwrap();
-    respond_json(json).into_response()
 }
 
 async fn route_template_load(
