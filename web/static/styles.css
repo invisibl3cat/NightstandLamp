@@ -211,10 +211,21 @@ div {
 }
 
 #templates {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+
+    flex: 1;
+
+    overflow: hidden;
+}
+
+#templates-inner {
     display: grid;
     grid-template-columns: auto 1fr;
-
     gap: 2em;
+
+    overflow: hidden;
 
     flex: 1;
 }
