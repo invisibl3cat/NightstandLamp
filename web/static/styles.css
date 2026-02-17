@@ -25,8 +25,6 @@ body {
 
     display: flex;
     height: 100vh;
-
-    overflow: scroll;
 }
 
 button {
@@ -76,8 +74,8 @@ div {
 
     gap: 2em;
 
-    margin-top: 60px;
-    margin-bottom: 60px;
+    margin-top: 30px;
+    margin-bottom: 30px;
     margin-left: auto;
     margin-right: auto;
 
@@ -96,10 +94,13 @@ div {
 #immediate-control {
     display: flex;
     flex-direction: column;
+    gap: 1em;
 
     flex: 1;
 
     width: 100%;
+
+    overflow: hidden;
 }
 
 #immediate-pick-image {
@@ -222,6 +223,15 @@ div {
     overflow: scroll;
 }
 
+.vflex {
+    display: flex;
+    flex-direction: column;
+}
+
+.flex1 {
+    flex: 1;
+}
+
 .error-message {
     font-size: 18pt;
     color: #e6ac28;
@@ -283,6 +293,10 @@ div {
 
         max-height: 800px;
     }
+}
+
+.scrollable-block {
+    overflow: scroll;
 }
 
 .v-spacer {
