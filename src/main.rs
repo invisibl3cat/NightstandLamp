@@ -237,12 +237,19 @@ async fn route_template_save(
         return respond_error(http::StatusCode::BAD_REQUEST, String::from("Invalid template name")).into_response();
     }
 
-    let body = match axum::body::to_bytes(body, 32 * 1024 * 1024).await {
+    let orig_image = match axum::body::to_bytes(body, 32 * 1024 * 1024).await {
         Ok(body) => body,
         Err(e) => return respond_error(http::StatusCode::BAD_REQUEST, format!("Invalid request body: {}", e)).into_response(),
     };
 
-    match templates::write_template(&state.templates, template_name.clone(), &body) {
+    let resampled_image = match imgops::resample_image(FRAME_DIMS, &orig_image) {
+        Ok(resampled_image) => resampled_image,
+        Err(e) => {
+            return respond_error(http::StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to resample image: {}", e)).into_response();
+        },
+    };
+
+    match templates::write_template(&state.templates, template_name.clone(), &resampled_image) {
         Ok(()) => respond_ok().into_response(),
         Err(e) => {
             respond_error(http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response()
