@@ -131,17 +131,11 @@ div {
     display: flex;
     flex-direction: row;
     justify-content: center;
+    flex: 1;
 
     gap: 2em;
 
     overflow: hidden;
-}
-
-#sc_color_picker_colors {
-    display: flex;
-    flex-direction: column;
-
-    gap: 2em;
 }
 
 #sc_rgb_hsv {
@@ -155,11 +149,15 @@ div {
 
 #sc_preview {
     height: 32px;
+    width: 100%;
+
+    grid-column: 1 / span 2;
 }
 
 #sc_tainer {
     display: flex;
     flex-direction: column;
+    flex: 1;
     gap: 1em;
 
     overflow: hidden;
