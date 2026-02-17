@@ -27,24 +27,26 @@
             </div>
 
             <div id="templates">
-                <div id="available_templates">
+                <div id="templates-inner">
+                    <div id="available_templates" class="scrollable-block">
+                    </div>
+
+                    <div id="template_image_tainer" class="scrollable-block">
+                        <img id="template_image" class="empty" src="" />
+                    </div>
                 </div>
 
-                <div id="template_image_tainer">
-                    <img id="template_image" class="empty" src="" />
+                <div id="template_buttons">
+                    <button id="btn_upload_to_lamp">
+                        Upload to lamp!
+                    </button>
 
-                    <div id="template_buttons">
-                        <button id="btn_upload_to_lamp">
-                            Upload to lamp!
-                        </button>
+                    <button id="btn_delete_template">
+                        Delete template
+                    </button>
+                </div>
 
-                        <button id="btn_delete_template">
-                            Delete template
-                        </button>
-                    </div>
-
-                    <div id="error_message_box" class="error-message">
-                    </div>
+                <div id="error_message_box" class="error-message">
                 </div>
             </div>
         </div>
