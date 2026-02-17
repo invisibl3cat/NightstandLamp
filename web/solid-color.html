@@ -49,14 +49,14 @@
                         <span>V</span> <input type="number" min="0" max="100" id="color_v" />
                     </div>
                 </div>
-            </div>
 
-            <button id='btn_upload_to_lamp'>
-                Upload to lamp!
-            </button>
-            <button id='btn_upload_to_lamp_smoothly'>
-                Upload to lamp smoothly!
-            </button>
+                <button id='btn_upload_to_lamp'>
+                    Upload to lamp!
+                </button>
+                <button id='btn_upload_to_lamp_smoothly'>
+                    Upload to lamp smoothly!
+                </button>
+            </div>
 
             <div id="error_message_box" class="error-message">
             </div>
@@ -416,6 +416,15 @@
 
             drawColorSpace();
             updateCurrentColorRgb(current_r, current_g, current_b);
+
+            const observer = new ResizeObserver(() => {
+                const h = sc_color_picker_outer.getBoundingClientRect().height;
+                console.log(h);
+                color_space.style.height = `${h}px`;
+                value_bar.style.height = `${h}px`;
+            });
+            observer.observe(sc_color_picker_outer);
+
         </script>
     </body>
  </html>

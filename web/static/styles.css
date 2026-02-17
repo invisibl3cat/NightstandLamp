@@ -130,8 +130,11 @@ div {
 #sc_color_picker_outer {
     display: flex;
     flex-direction: row;
+    justify-content: center;
 
     gap: 2em;
+
+    overflow: hidden;
 }
 
 #sc_color_picker_colors {
@@ -156,11 +159,15 @@ div {
 
 #sc_tainer {
     display: flex;
-    margin: auto;
+    flex-direction: column;
+    gap: 1em;
+
+    overflow: hidden;
 }
 
 #color_space {
     aspect-ratio: 1 / 1;
+    max-height: 500px;
 }
 
 #value_bar {
