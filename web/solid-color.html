@@ -28,13 +28,9 @@
 
             <div id="sc_tainer">
                 <div id="sc_color_picker_outer">
-                    <div id="sc_color_picker_colors">
-                        <div id="sc_color_picker">
-                            <canvas id="color_space" width=500 height=500></canvas>
-                            <canvas id="value_bar" width=10 height=500></canvas>
-                        </div>
-
-                        <canvas id="sc_preview" width=1 height=1></canvas>
+                    <div id="sc_color_picker">
+                        <canvas id="color_space" width=500 height=500></canvas>
+                        <canvas id="value_bar" width=10 height=500></canvas>
                     </div>
 
                     <div id="sc_rgb_hsv">
@@ -47,6 +43,10 @@
                         <span>H</span> <input type="number" min="0" max="359" id="color_h"/>
                         <span>S</span> <input type="number" min="0" max="100" id="color_s" />
                         <span>V</span> <input type="number" min="0" max="100" id="color_v" />
+
+                        <div class="v-spacer"></div><div></div>
+
+                        <canvas id="sc_preview" width=1 height=1></canvas>
                     </div>
                 </div>
 
