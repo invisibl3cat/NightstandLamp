@@ -69,6 +69,7 @@
             const XHAIR_HALF_THICKNESS = XHAIR_THICKNESS / 2;
             const XHAIR_LENGTH = 6;
             const XHAIR_OFFSET = 2;
+            const MAX_CTRL_HEIGHT_PX = 500;
 
             let current_h = 180;
             let current_s = 0.5;
@@ -382,8 +383,8 @@
             updateCurrentColorRgb(current_r, current_g, current_b);
 
             const observer = new ResizeObserver(() => {
-                const h = sc_color_picker_outer.getBoundingClientRect().height;
-                console.log(h);
+                let h = sc_color_picker_outer.getBoundingClientRect().height;
+                h = clamp(h, 0, MAX_CTRL_HEIGHT_PX);
                 color_space.style.height = `${h}px`;
                 value_bar.style.height = `${h}px`;
             });
