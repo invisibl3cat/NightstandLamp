@@ -3,6 +3,8 @@
     --bg-clr-light: #483030;
     --border-clr: #5d8dbe;
     --text-clr: #beaf5d;
+
+    --gap-a: 16px;
 }
 
 @font-face {
@@ -88,7 +90,7 @@ div {
     display: flex;
     flex-direction: column;
 
-    gap: 16px;
+    gap: var(--gap-a);
 }
 
 #immediate-control {
@@ -237,6 +239,15 @@ div {
     max-width: 15rem;
 
     overflow: scroll;
+}
+
+.gap {
+    gap: var(--gap-a);
+}
+
+.hflex {
+    display: flex;
+    flex-direction: row;
 }
 
 .vflex {

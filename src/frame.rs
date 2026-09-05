@@ -106,6 +106,32 @@ fn frames_from_static_image(img: image::DynamicImage) -> Frames {
     vec![frame]
 }
 
+pub fn blend_frame_data(from_frame: &[u8], to_frame: &[u8], n_steps: u32) -> Frames {
+    assert!(from_frame.len() == to_frame.len());
+
+    let n_subpixels = from_frame.len();
+    let mut frames = Vec::new();
+
+    for n in 1..(n_steps + 1) {
+        let n = n as f32;
+        let blend_factor = n / (n_steps as f32);
+
+        let mut frame = Vec::with_capacity(n_subpixels);
+        for subpixel in 0..n_subpixels {
+            let a = from_frame[subpixel] as f32;
+            let b = to_frame[subpixel] as f32;
+            let blended = b * blend_factor + a * (1.0 - blend_factor);
+
+            frame.push(blended as u8);
+        }
+
+        assert!(frame.len() == from_frame.len());
+        frames.push(frame);
+    }
+
+    frames
+}
+
 pub fn frames_from_image<F: IntoFrameSpec>(frame_spec: F, image_bytes: &[u8]) -> Result<Frames, String> {
     let resampled_image = imgops::resample_image(frame_spec, image_bytes)?;
 

@@ -78,10 +78,6 @@
             let current_g = hsv2rgb(current_h, current_s, current_v).g;
             let current_b = hsv2rgb(current_h, current_s, current_v).b;
 
-            let last_uploaded_h = current_h;
-            let last_uploaded_s = current_s;
-            let last_uploaded_v = current_v;
-
             let colorSpaceMouseDown = false;
             let valueBarMouseDown = false;
 
@@ -299,15 +295,11 @@
                 updateCurrentColorHsv(current_h, current_s, val);
             }
 
-            async function uploadColorToLamp(r, g, b) {
+            async function uploadColorToLamp(r, g, b, transition_steps) {
                 r = Math.round(r);
                 g = Math.round(g);
                 b = Math.round(b);
-                const resp = await fetch(`/solid-color/instant/${r}/${g}/${b}`, { method: 'POST' });
-
-                last_uploaded_h = current_h;
-                last_uploaded_s = current_s;
-                last_uploaded_v = current_v;
+                const resp = await fetch(`/solid-color/${r}/${g}/${b}/${transition_steps}`, { method: 'POST' });
 
                 if (!resp.ok) {
                     const reason = await resp.text();
@@ -373,45 +365,13 @@
             btn_upload_to_lamp.onclick = async () => {
                 clearError();
 
-                uploadColorToLamp(current_r, current_g, current_b);
+                uploadColorToLamp(current_r, current_g, current_b, 1);
             };
 
             btn_upload_to_lamp_smoothly.onclick = async () => {
-                const steps = 30;
-
-                const dH = (current_h - last_uploaded_h) / steps;
-                const dS = (current_s - last_uploaded_s) / steps;
-                const dV = (current_v - last_uploaded_v) / steps;
-
-                const payload = [];
-                for (let step = 1; step < steps; step++) {
-                    const h = last_uploaded_h + dH * step;
-                    const s = last_uploaded_s + dS * step;
-                    const v = last_uploaded_v + dV * step;
-
-                    const { r, g, b } = hsv2rgb(h, s, v);
-                    payload.push([Math.round(r), Math.round(g), Math.round(b)]);
-                };
-
-                last_uploaded_h = current_h;
-                last_uploaded_s = current_s;
-                last_uploaded_v = current_v;
-
                 clearError();
 
-                const resp = await fetch('/solid-color/smooth', {
-                    method: 'POST',
-                    body: JSON.stringify(payload),
-                    headers: new Headers({
-                        'Content-Type': 'application/json'
-                    }),
-                });
-
-                if (!resp.ok) {
-                    const reason = await resp.text();
-                    displayError(reason);
-                    console.error(resp);
-                }
+                uploadColorToLamp(current_r, current_g, current_b, 30);
             };
 
             drawColorSpace();

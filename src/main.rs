@@ -2,12 +2,11 @@ mod config;
 mod device;
 mod frame;
 mod imgops;
-mod solid;
 mod templates;
 
 use axum::{self, RequestExt};
 use axum::body::{Body, Bytes};
-use axum::extract::{Json, OptionalFromRequestParts, Path, Request, State};
+use axum::extract::{OptionalFromRequestParts, Path, Request, State};
 use axum::http;
 use axum::response::{IntoResponse, Response};
 use tower_http::trace::TraceLayer;
@@ -16,6 +15,7 @@ use tracing_subscriber::{fmt, EnvFilter};
 
 use std::path::PathBuf;
 use std::time::Duration;
+use std::sync::{Arc, Mutex};
 
 const FRAME_COLS: u8 = 30;
 const FRAME_ROWS: u8 = 32;
@@ -32,6 +32,7 @@ enum FramesCmd {
 struct AppState {
     frames_tx: tokio::sync::mpsc::Sender<FramesCmd>,
     templates: PathBuf,
+    last_sent_frame: Arc<Mutex<Option<Vec<u8>>>>,
 }
 
 fn respond_binary(payload: Vec<u8>) -> impl IntoResponse {
@@ -85,6 +86,17 @@ fn serve_html_file(path: &str) -> Response<Body> {
     }
 }
 
+fn make_blended_frame_sequence(start_frame: Option<frame::Frame>, end_frame: frame::Frame, n_steps: u32) -> frame::Frames {
+    match start_frame {
+        Some(start_frame) => {
+            frame::blend_frame_data(&start_frame, &end_frame, n_steps)
+        },
+        None => {
+            vec![end_frame]
+        },
+    }
+}
+
 async fn route_index() -> Response<Body> {
     serve_html_file("web/index.html")
 }
@@ -101,7 +113,7 @@ async fn route_resample(request: Request) -> Response<Body> {
     }
 }
 
-async fn route_upload_image(
+async fn route_upload_image_animated(
     State(state): State<AppState>,
     request: Request
 ) -> Response<Body> {
@@ -116,7 +128,42 @@ async fn route_upload_image(
     };
 
     match state.frames_tx.send(FramesCmd::Loop(frames)).await {
-        Ok(_) => respond_ok().into_response(),
+        Ok(_) => {
+            let mut last_sent_frame = state.last_sent_frame.lock().unwrap();
+            *last_sent_frame = None;
+            respond_ok().into_response()
+        },
+        Err(e) => {
+            error!("Failed to push image to device queue: {}", e);
+            respond_error(http::StatusCode::INTERNAL_SERVER_ERROR, String::from("Failed to push image to device queue")).into_response()
+        },
+    }
+}
+
+async fn route_upload_image_static(
+    State(state): State<AppState>,
+    Path(n_steps): Path<u32>,
+    request: Request
+) -> Response<Body> {
+    let body = match request.extract::<Bytes, _>().await {
+        Ok(body) => body,
+        Err(e) => return respond_error(http::StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    };
+
+    let end_frame = match frame::frames_from_image(FRAME_DIMS, &body) {
+        Ok(frames) => frames.first().unwrap().clone(),
+        Err(e) => return respond_error(http::StatusCode::BAD_REQUEST, e).into_response(),
+    };
+
+    let last_sent_frame = state.last_sent_frame.lock().unwrap().to_owned();
+    let frames = make_blended_frame_sequence(last_sent_frame, end_frame.clone(), n_steps);
+
+    match state.frames_tx.send(FramesCmd::Transition(frames)).await {
+        Ok(_) => {
+            let mut last_sent_frame = state.last_sent_frame.lock().unwrap();
+            *last_sent_frame = Some(end_frame);
+            respond_ok().into_response()
+        },
         Err(e) => {
             error!("Failed to push image to device queue: {}", e);
             respond_error(http::StatusCode::INTERNAL_SERVER_ERROR, String::from("Failed to push image to device queue")).into_response()
@@ -128,35 +175,20 @@ async fn route_solid_color() -> Response<Body> {
     serve_html_file("web/solid-color.html")
 }
 
-async fn route_solid_color_instant(
+async fn route_solid_color_upload(
     State(state): State<AppState>,
-    Path((r, g, b)): Path<(u8, u8, u8)>
+    Path((r, g, b, n_steps)): Path<(u8, u8, u8, u32)>
 ) -> Response<Body> {
-    let frame = solid::make_frame(FRAME_DIMS, r, g, b);
-
-    match state.frames_tx.send(FramesCmd::Transition(vec![frame])).await {
-        Ok(_) => respond_ok().into_response(),
-        Err(e) => {
-            error!("Failed to push frames to device queue: {}", e);
-            respond_error(http::StatusCode::INTERNAL_SERVER_ERROR, String::from("Failed to push image to device queue")).into_response()
-        },
-    }
-}
-
-async fn route_solid_color_smooth(
-    State(state): State<AppState>,
-    Json(transitions): Json<solid::SmoothSolidColor>
-) -> Response<Body> {
-    let mut frames = Vec::new();
-
-    for transition in transitions {
-        let [r, g, b] = transition;
-        let frame = solid::make_frame(FRAME_DIMS, r, g, b);
-        frames.push(frame);
-    }
+    let end_frame = frame::frame_from_rgb(FRAME_DIMS, r, g, b);
+    let last_sent_frame = state.last_sent_frame.lock().unwrap().to_owned();
+    let frames = make_blended_frame_sequence(last_sent_frame, end_frame.clone(), n_steps);
 
     match state.frames_tx.send(FramesCmd::Transition(frames)).await {
-        Ok(()) => respond_ok().into_response(),
+        Ok(()) => {
+            let mut last_sent_frame = state.last_sent_frame.lock().unwrap();
+            *last_sent_frame = Some(end_frame);
+            respond_ok().into_response()
+        },
         Err(e) => {
             error!("Failed to push frames to device queue: {}", e);
             respond_error(http::StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to push frames to device queue: {}", e)).into_response()
@@ -398,15 +430,16 @@ async fn main() {
     let app_state = AppState{
         frames_tx,
         templates,
+        last_sent_frame: Arc::new(Mutex::new(None)),
     };
 
     let app = axum::Router::new()
         .route("/", axum::routing::get(route_index))
         .route("/resample-image", axum::routing::post(route_resample))
-        .route("/upload-image", axum::routing::post(route_upload_image))
+        .route("/upload-image/animated", axum::routing::post(route_upload_image_animated))
+        .route("/upload-image/static/{n_steps}", axum::routing::post(route_upload_image_static))
         .route("/solid-color", axum::routing::get(route_solid_color))
-        .route("/solid-color/instant/{r}/{g}/{b}", axum::routing::post(route_solid_color_instant))
-        .route("/solid-color/smooth", axum::routing::post(route_solid_color_smooth))
+        .route("/solid-color/{r}/{g}/{b}/{n_steps}", axum::routing::post(route_solid_color_upload))
         .route("/template", axum::routing::get(route_template))
         .route("/template/delete/{name}", axum::routing::post(route_template_delete))
         .route("/template/list", axum::routing::get(route_template_list))
