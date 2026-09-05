@@ -78,8 +78,15 @@
             let current_g = hsv2rgb(current_h, current_s, current_v).g;
             let current_b = hsv2rgb(current_h, current_s, current_v).b;
 
-            let colorSpaceMouseDown = false;
-            let valueBarMouseDown = false;
+            let activeControl = null;
+
+            function clamp(v, min, max) {
+                return v < min
+                    ? min
+                    : v > max
+                        ? max
+                        : v;
+            }
 
             function clearError() {
                 error_message_box.innerText = '';
@@ -277,8 +284,8 @@
                 const hueStep = 360 / brect.width;
                 const satStep = 1 / brect.height;
 
-                const xR = cursorX - brect.x;
-                const yR = cursorY - brect.y;
+                const xR = clamp(cursorX - brect.x, 0, brect.width);
+                const yR = clamp(cursorY - brect.y, 0, brect.height);
 
                 const hue = xR * hueStep;
                 const sat = 1 - (yR * satStep);
@@ -290,7 +297,8 @@
                 const brect = value_bar.getBoundingClientRect();
                 const valStep = 1 / brect.height;
 
-                const val = 1 - ((cursorY - brect.y) * valStep);
+                const rY = clamp(cursorY - brect.y, 0, brect.height);
+                const val = 1 - (rY * valStep);
 
                 updateCurrentColorHsv(current_h, current_s, val);
             }
@@ -320,28 +328,24 @@
             };
 
             color_space.onmousedown = () => {
-                colorSpaceMouseDown = true;
-            };
-            color_space.onmouseup = () => {
-                colorSpaceMouseDown = false;
-            };
-            color_space.onmousemove = (ev) => {
-                if (!colorSpaceMouseDown) return;
-
-                updateHueSatFromCursor(ev.clientX, ev.clientY);
+                activeControl = 'color-space';
             };
 
             value_bar.onmousedown = () => {
-                valueBarMouseDown = true;
+                activeControl = 'value-bar';
             };
-            value_bar.onmouseup = () => {
-                valueBarMouseDown = false;
-            };
-            value_bar.onmousemove = (ev) => {
-                if (!valueBarMouseDown) return;
 
-                updateValFromCursor(ev.clientY);
-            };
+
+            document.addEventListener('mousemove', (ev) => {
+                if (activeControl === 'color-space') {
+                    updateHueSatFromCursor(ev.clientX, ev.clientY);
+                } else if (activeControl === 'value-bar') {
+                    updateValFromCursor(ev.clientY);
+                }
+            });
+            document.addEventListener('mouseup', () => {
+                activeControl = null;
+            });
 
             color_r.onchange = (ev) => {
                 updateCurrentColorRgb(parseInt(ev.target.value), current_g, current_b);
