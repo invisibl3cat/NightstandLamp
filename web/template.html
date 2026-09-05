@@ -37,9 +37,19 @@
                 </div>
 
                 <div id="template_buttons">
-                    <button id="btn_upload_to_lamp">
-                        Upload to lamp!
-                    </button>
+                    <div class="hflex gap">
+                        <button id="btn_upload_to_lamp_animated" class="flex1">
+                            Upload to lamp (animated)
+                        </button>
+
+                        <button id="btn_upload_to_lamp_static" class="flex1">
+                            Upload to lamp (static)
+                        </button>
+
+                        <button id="btn_upload_to_lamp_static_smooth" class="flex1">
+                            Upload to lamp (static, smoothly)
+                        </button>
+                    </div>
 
                     <button id="btn_delete_template">
                         Delete template
@@ -118,11 +128,26 @@
                 }
             }
 
-            btn_upload_to_lamp.onclick = async () => {
+            async function uploadToLamp(displayMode) {
                 if (!activeTemplate) return;
 
+                let endpoint;
+                switch (displayMode) {
+                    case 'animated':
+                        endpoint = `/template/upload/${activeTemplate}/animated`;
+                        break;
+                    case 'static':
+                        endpoint = `/template/upload/${activeTemplate}/static/1`;
+                        break;
+                    case 'static-smooth':
+                        endpoint = `/template/upload/${activeTemplate}/static/30`;
+                        break;
+                    default:
+                        throw Error(`Invalid display mode ${displayMode}`);
+                }
+
                 try {
-                    const resp = await fetch(`/template/upload/${activeTemplate}`, { method: 'POST' });
+                    const resp = await fetch(endpoint, { method: 'POST' });
                     if (resp.ok) {
                     } else {
                         const reason = await resp.text();
@@ -134,8 +159,19 @@
                     displayError(e.toString());
                     console.log(e);
                 }
-
             }
+
+            btn_upload_to_lamp_animated.onclick = async () => {
+                uploadToLamp('animated');
+            };
+
+            btn_upload_to_lamp_static.onclick = async () => {
+                uploadToLamp('static');
+            };
+
+            btn_upload_to_lamp_static_smooth.onclick = async () => {
+                uploadToLamp('static-smooth');
+            };
 
             btn_delete_template.onclick = async () => {
                 if (!activeTemplate) return;

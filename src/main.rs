@@ -79,6 +79,46 @@ fn respond_json(json: String) -> impl IntoResponse {
     )
 }
 
+async fn upload_image_animated(state: &AppState, image: &[u8]) -> Response<Body> {
+    let frames = match frame::frames_from_image(FRAME_DIMS, image) {
+        Ok(frames) => frames,
+        Err(e) => return respond_error(http::StatusCode::BAD_REQUEST, e).into_response(),
+    };
+
+    match state.frames_tx.send(FramesCmd::Loop(frames)).await {
+        Ok(_) => {
+            let mut last_sent_frame = state.last_sent_frame.lock().unwrap();
+            *last_sent_frame = None;
+            respond_ok().into_response()
+        },
+        Err(e) => {
+            error!("Failed to push image to device queue: {}", e);
+            respond_error(http::StatusCode::INTERNAL_SERVER_ERROR, String::from("Failed to push image to device queue")).into_response()
+        },
+    }
+}
+
+async fn upload_image_static(state: &AppState, image: &[u8], n_steps: u32) -> Response<Body> {
+    let end_frame = match frame::frames_from_image(FRAME_DIMS, &image) {
+        Ok(frames) => frames.first().unwrap().clone(),
+        Err(e) => return respond_error(http::StatusCode::BAD_REQUEST, e).into_response(),
+    };
+    let last_sent_frame = state.last_sent_frame.lock().unwrap().to_owned();
+    let frames = make_blended_frame_sequence(last_sent_frame, end_frame.clone(), n_steps);
+
+    match state.frames_tx.send(FramesCmd::Transition(frames)).await {
+        Ok(_) => {
+            let mut last_sent_frame = state.last_sent_frame.lock().unwrap();
+            *last_sent_frame = Some(end_frame);
+            respond_ok().into_response()
+        },
+        Err(e) => {
+            error!("Failed to push image to device queue: {}", e);
+            respond_error(http::StatusCode::INTERNAL_SERVER_ERROR, String::from("Failed to push image to device queue")).into_response()
+        },
+    }
+}
+
 fn serve_html_file(path: &str) -> Response<Body> {
     match std::fs::read_to_string(path) {
         Ok(content) => respond_html(content).into_response(),
@@ -122,22 +162,7 @@ async fn route_upload_image_animated(
         Err(e) => return respond_error(http::StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     };
 
-    let frames = match frame::frames_from_image(FRAME_DIMS, &body) {
-        Ok(frames) => frames,
-        Err(e) => return respond_error(http::StatusCode::BAD_REQUEST, e).into_response(),
-    };
-
-    match state.frames_tx.send(FramesCmd::Loop(frames)).await {
-        Ok(_) => {
-            let mut last_sent_frame = state.last_sent_frame.lock().unwrap();
-            *last_sent_frame = None;
-            respond_ok().into_response()
-        },
-        Err(e) => {
-            error!("Failed to push image to device queue: {}", e);
-            respond_error(http::StatusCode::INTERNAL_SERVER_ERROR, String::from("Failed to push image to device queue")).into_response()
-        },
-    }
+    upload_image_animated(&state, &body).await
 }
 
 async fn route_upload_image_static(
@@ -150,25 +175,7 @@ async fn route_upload_image_static(
         Err(e) => return respond_error(http::StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     };
 
-    let end_frame = match frame::frames_from_image(FRAME_DIMS, &body) {
-        Ok(frames) => frames.first().unwrap().clone(),
-        Err(e) => return respond_error(http::StatusCode::BAD_REQUEST, e).into_response(),
-    };
-
-    let last_sent_frame = state.last_sent_frame.lock().unwrap().to_owned();
-    let frames = make_blended_frame_sequence(last_sent_frame, end_frame.clone(), n_steps);
-
-    match state.frames_tx.send(FramesCmd::Transition(frames)).await {
-        Ok(_) => {
-            let mut last_sent_frame = state.last_sent_frame.lock().unwrap();
-            *last_sent_frame = Some(end_frame);
-            respond_ok().into_response()
-        },
-        Err(e) => {
-            error!("Failed to push image to device queue: {}", e);
-            respond_error(http::StatusCode::INTERNAL_SERVER_ERROR, String::from("Failed to push image to device queue")).into_response()
-        },
-    }
+    upload_image_static(&state, &body, n_steps).await
 }
 
 async fn route_solid_color() -> Response<Body> {
@@ -289,7 +296,7 @@ async fn route_template_save(
     }
 }
 
-async fn route_template_upload(
+async fn route_template_upload_animated(
     State(state): State<AppState>,
     Path(template_name): Path<String>
 ) -> Response<Body> {
@@ -299,17 +306,25 @@ async fn route_template_upload(
 
     match templates::read_template(&state.templates, template_name) {
         Ok(template_bytes) => {
-            match frame::frames_from_image(FRAME_DIMS, &template_bytes) {
-                Ok(frames) => {
-                    match state.frames_tx.send(FramesCmd::Loop(frames)).await {
-                        Ok(_) => respond_ok().into_response(),
-                        Err(e) => respond_error(http::StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to push frames to device queue: {}", e)).into_response()
-                    }
-                },
-                Err(e) => {
-                    respond_error(http::StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to upload template to device: {}", e)).into_response()
-                },
-            }
+            upload_image_animated(&state, &template_bytes).await
+        },
+        Err(e) => {
+            respond_error(http::StatusCode::BAD_REQUEST, format!("Failed to load template: {}", e)).into_response()
+        },
+    }
+}
+
+async fn route_template_upload_static(
+    State(state): State<AppState>,
+    Path((template_name, n_steps)): Path<(String, u32)>
+) -> Response<Body> {
+    if template_name.is_empty() {
+        return respond_error(http::StatusCode::BAD_REQUEST, "Template name cannot be empty".to_string()).into_response();
+    }
+
+    match templates::read_template(&state.templates, template_name) {
+        Ok(template_bytes) => {
+            upload_image_static(&state, &template_bytes, n_steps).await
         },
         Err(e) => {
             respond_error(http::StatusCode::BAD_REQUEST, format!("Failed to load template: {}", e)).into_response()
@@ -445,7 +460,8 @@ async fn main() {
         .route("/template/list", axum::routing::get(route_template_list))
         .route("/template/load/{name}", axum::routing::get(route_template_load))
         .route("/template/save/{name}", axum::routing::post(route_template_save))
-        .route("/template/upload/{name}", axum::routing::post(route_template_upload))
+        .route("/template/upload/{name}/animated", axum::routing::post(route_template_upload_animated))
+        .route("/template/upload/{name}/static/{n_steps}", axum::routing::post(route_template_upload_static))
         .nest_service("/static", tower_http::services::ServeDir::new("web/static"))
         .layer(axum::extract::DefaultBodyLimit::max(32 * 1024 * 1024))
         .layer(TraceLayer::new_for_http()
