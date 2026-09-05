@@ -71,10 +71,7 @@ fn resample_static_image(frame_spec: FrameSpec, img: image::DynamicImage, img_fo
 }
 
 pub fn is_image(file_path: &Path) -> bool {
-    match image::ImageReader::open(file_path) {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    image::ImageReader::open(file_path).is_ok()
 }
 
 pub fn resample_image<F: IntoFrameSpec>(frame_spec: F, bytes: &[u8]) -> Result<Vec<u8>, String> {

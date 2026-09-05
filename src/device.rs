@@ -12,7 +12,7 @@ pub fn open_device(path: &str) -> Result<Box<dyn serialport::SerialPort>, String
 }
 
 pub fn upload_frame(device: &mut Box<dyn serialport::SerialPort>, frame: &[u8]) -> Result<(), String> {
-    if let Err(e) = device.write(&frame) {
+    if let Err(e) = device.write(frame) {
         return Err(e.to_string());
     }
 

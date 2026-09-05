@@ -26,15 +26,12 @@ pub fn list_templates(path: &Path) -> Result<Vec<String>, String> {
                         continue;
                     }
 
-                    match epath.file_name() {
-                        Some(file_name) => {
-                            let file_name: String = file_name.to_string_lossy().into();
+                    if let Some(file_name) = epath.file_name() {
+                        let file_name: String = file_name.to_string_lossy().into();
 
-                            if imgops::is_image(&epath) {
-                                templates.push(file_name);
-                            }
-                        },
-                        None => (),
+                        if imgops::is_image(&epath) {
+                            templates.push(file_name);
+                        }
                     }
                 }
             }
