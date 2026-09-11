@@ -203,6 +203,27 @@ async fn route_solid_color_upload(
     }
 }
 
+async fn route_solid_color_current(
+    State(state): State<AppState>
+) -> Response<Body> {
+    let last_sent_frame = state.last_sent_frame.lock().unwrap().to_owned();
+
+    let color = match last_sent_frame {
+        Some(bytes) => {
+            let r = bytes.get(0).unwrap_or(&128u8);
+            let g = bytes.get(1).unwrap_or(&255u8);
+            let b = bytes.get(2).unwrap_or(&255u8);
+
+            vec![*r, *g, *b]
+        },
+        None => vec![128, 255, 255],
+    };
+
+    let json = serde_json::to_string(&color).unwrap();
+    respond_json(json).into_response()
+}
+
+
 async fn route_template() -> Response<Body> {
     serve_html_file("web/template.html")
 }
@@ -455,6 +476,7 @@ async fn main() {
         .route("/upload-image/static/{n_steps}", axum::routing::post(route_upload_image_static))
         .route("/solid-color", axum::routing::get(route_solid_color))
         .route("/solid-color/{r}/{g}/{b}/{n_steps}", axum::routing::post(route_solid_color_upload))
+        .route("/solid-color/current", axum::routing::get(route_solid_color_current))
         .route("/template", axum::routing::get(route_template))
         .route("/template/delete/{name}", axum::routing::post(route_template_delete))
         .route("/template/list", axum::routing::get(route_template_list))

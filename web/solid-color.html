@@ -321,6 +321,18 @@
                 return true;
             }
 
+            async function getCurrentColor() {
+                const resp = await fetch('/solid-color/current', { method: 'GET' });
+                if (resp.ok) {
+                    const j = await resp.json();
+                    current_r = j[0] ?? 128;
+                    current_g = j[1] ?? 255;
+                    current_b = j[2] ?? 255;
+
+                    updateCurrentColorRgb(current_r, current_g, current_b);
+                }
+            }
+
             color_space.onclick = (ev) => {
                 updateHueSatFromCursor(ev.clientX, ev.clientY);
             };
@@ -380,7 +392,7 @@
             };
 
             drawColorSpace();
-            updateCurrentColorRgb(current_r, current_g, current_b);
+            getCurrentColor();
 
             const observer = new ResizeObserver(() => {
                 let h = sc_color_picker_outer.getBoundingClientRect().height;
