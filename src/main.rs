@@ -353,6 +353,26 @@ async fn route_template_upload_static(
     }
 }
 
+async fn route_switch_off(
+    State(state): State<AppState>
+) -> Response<Body> {
+    let end_frame = frame::frame_from_rgb(FRAME_DIMS, 0, 0, 0);
+    let last_sent_frame = state.last_sent_frame.lock().unwrap().to_owned();
+    let frames = make_blended_frame_sequence(last_sent_frame, end_frame.clone(), 30);
+
+    match state.frames_tx.send(FramesCmd::Transition(frames)).await {
+        Ok(()) => {
+            let mut last_sent_frame = state.last_sent_frame.lock().unwrap();
+            *last_sent_frame = Some(end_frame);
+            respond_ok().into_response()
+        },
+        Err(e) => {
+            error!("Failed to push frames to device queue: {}", e);
+            respond_error(http::StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to push frames to device queue: {}", e)).into_response()
+        }
+    }
+}
+
 fn init_tracing() {
     fmt()
         .with_env_filter(EnvFilter::new("info"))
@@ -484,6 +504,7 @@ async fn main() {
         .route("/template/save/{name}", axum::routing::post(route_template_save))
         .route("/template/upload/{name}/animated", axum::routing::post(route_template_upload_animated))
         .route("/template/upload/{name}/static/{n_steps}", axum::routing::post(route_template_upload_static))
+        .route("/switch-off", axum::routing::post(route_switch_off))
         .nest_service("/static", tower_http::services::ServeDir::new("web/static"))
         .layer(axum::extract::DefaultBodyLimit::max(32 * 1024 * 1024))
         .layer(TraceLayer::new_for_http()

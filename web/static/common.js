@@ -10,6 +10,10 @@ btn_mode_solid_color.onclick = () => {
     window.location.href = '/solid-color';
 };
 
+btn_mode_switch_off.onclick = () => {
+    fetch('/switch-off', { method: 'POST' });
+};
+
 async function postImage(endpoint, imageData) {
     return await fetch(endpoint, {
         method: 'POST',
