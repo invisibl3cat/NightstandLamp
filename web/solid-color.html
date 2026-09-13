@@ -371,8 +371,6 @@
                     if (idx % 4 !== 3) pixelsNoAlpha[jdx++] = pixels[idx];
                 }
 
-                console.log(pixelsNoAlpha);
-
                 const name = askForTemplateName();
                 if (!name) return;
 
@@ -409,6 +407,10 @@
                 activeControl = 'value-bar';
             };
 
+            value_bar.onwheel = (ev) => {
+                let v = clamp(current_v - ev.deltaY / 2000, 0.0, 1.0);
+                updateCurrentColorHsv(current_h, current_s, v);
+            };
 
             document.addEventListener('mousemove', (ev) => {
                 if (activeControl === 'color-space') {
