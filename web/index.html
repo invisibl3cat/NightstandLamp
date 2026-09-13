@@ -204,11 +204,8 @@
                 const f = image_to_display.files[0];
 
                 if (f) {
-                    const name = window.prompt('Enter the name for the template', '');
-                    if (!name) {
-                        displayError('Template must have a name');
-                        return;
-                    }
+                    const name = askForTemplateName();
+                    if (!name) return;
 
                     const reader = new FileReader();
                     reader.onload = async () => {

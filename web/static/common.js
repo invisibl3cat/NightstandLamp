@@ -14,6 +14,16 @@ btn_mode_switch_off.onclick = () => {
     fetch('/switch-off', { method: 'POST' });
 };
 
+function askForTemplateName() {
+    const name = window.prompt('Enter the name for the template', '');
+    if (!name) {
+        displayError('Template must have a name');
+        return null;
+    }
+
+    return name;
+}
+
 async function postImage(endpoint, imageData) {
     return await fetch(endpoint, {
         method: 'POST',

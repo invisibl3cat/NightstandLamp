@@ -54,11 +54,17 @@
                     </div>
                 </div>
 
-                <button id='btn_upload_to_lamp'>
-                    Upload to lamp!
-                </button>
-                <button id='btn_upload_to_lamp_smoothly'>
-                    Upload to lamp smoothly!
+                <div class="hflex gap">
+                    <button id='btn_upload_to_lamp' class="flex1">
+                        Upload to lamp!
+                    </button>
+                    <button id='btn_upload_to_lamp_smoothly' class="flex1">
+                        Upload to lamp smoothly!
+                    </button>
+                </div>
+
+                <button id='btn_save_as_template'>
+                    Save as template
                 </button>
             </div>
 
@@ -337,6 +343,42 @@
                 }
             }
 
+            async function saveColorAsTemplate() {
+                const canvas = new OffscreenCanvas(30, 32);
+                const ctx = canvas.getContext('2d');
+
+                ctx.fillStyle = `rgb(${current_r} ${current_g} ${current_b})`;
+                ctx.fillRect(0, 0, 30, 32);
+
+                const pixels = ctx.getImageData(0, 0, 30, 32, { colorspace: "sRGB", pixelFormat: "rgba-unorm8" }).data;
+                const pixelsNoAlpha = new Uint8Array(30 * 32 * 3);
+                for (let idx = 0, jdx = 0; idx < pixels.length; idx++) {
+                    if (idx % 4 !== 3) pixelsNoAlpha[jdx++] = pixels[idx];
+                }
+
+                console.log(pixelsNoAlpha);
+
+                const name = askForTemplateName();
+                if (!name) return;
+
+                try {
+                    const resp = await postImage(`/template/save/${name}`, pixelsNoAlpha);
+                    if (resp.ok) {
+                        console.log('saved');
+                    } else {
+                        const reason = await resp.text();
+
+                        displayError(reason);
+                        console.error(reason);
+                    }
+                } catch(e) {
+                    const reason = e.toString();
+
+                    displayError(reason);
+                    console.error(e.toString());
+                }
+            }
+
             color_space.onclick = (ev) => {
                 updateHueSatFromCursor(ev.clientX, ev.clientY);
             };
@@ -393,6 +435,10 @@
                 clearError();
 
                 uploadColorToLamp(current_r, current_g, current_b, 30);
+            };
+
+            btn_save_as_template.onclick = () => {
+                saveColorAsTemplate();
             };
 
             drawColorSpace();

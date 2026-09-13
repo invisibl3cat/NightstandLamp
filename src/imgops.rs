@@ -1,9 +1,10 @@
-use image::{self, GenericImageView};
+use image::{self, GenericImageView, ImageEncoder};
 use image::{AnimationDecoder, ImageDecoder};
 
 use std::path::Path;
 use std::io::Cursor;
 
+use crate::{FRAME_ROWS, FRAME_COLS};
 use crate::frame::{FrameSpec, IntoFrameSpec};
 
 fn resample_gif_frames(frame_spec: FrameSpec, frames: image::Frames) -> Vec<image::Frame> {
@@ -81,19 +82,34 @@ pub fn resample_image<F: IntoFrameSpec>(frame_spec: F, bytes: &[u8]) -> Result<V
         Ok(img) => img,
         Err(e) => return Err(format!("Failed to determine image format: {}", e)),
     };
-    let img_format = match img.format() {
-        Some(format) => format,
-        None => image::ImageFormat::Png,
-    };
 
-    if img_format == image::ImageFormat::Gif {
-        resample_gif_image(frame_spec, bytes)
-    } else {
-        let img = match img.decode() {
-            Ok(img) => img,
-            Err(e) => return Err(format!("Failed to decode image: {}", e)),
-        };
+    match img.format() {
+        Some(format) => {
+            match format {
+                image::ImageFormat::Gif => resample_gif_image(frame_spec, bytes),
+                _ => {
+                    let img = match img.decode() {
+                        Ok(img) => img,
+                        Err(e) => return Err(format!("Failed to decode image: {}", e)),
+                    };
 
-        resample_static_image(frame_spec, img, img_format)
+                    resample_static_image(frame_spec, img, format)
+                }
+            }
+        },
+        None => {
+            if bytes.len() == 3 * (FRAME_COLS as usize * FRAME_ROWS as usize) {
+                // If the source image data looks like it could resemble a ROW * COL RGB image,
+                // treat it as raw data
+                let mut png_encoded = Vec::new();
+                let encoder = image::codecs::png::PngEncoder::new(Cursor::new(&mut png_encoded));
+                match encoder.write_image(&bytes, FRAME_COLS as _, FRAME_ROWS as _, image::ExtendedColorType::Rgb8) {
+                    Ok(()) => Ok(png_encoded),
+                    Err(e) => Err(format!("Failed to encode raw pixel data as PNG: {}", e)),
+                }
+            } else {
+                Err("Failed to determine image format: Unknown pixel data".into())
+            }
+        }
     }
 }
