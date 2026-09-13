@@ -51,6 +51,17 @@
                         <div class="v-spacer"></div><div></div>
 
                         <canvas id="sc_preview" width=1 height=1></canvas>
+
+                        <div class="v-spacer"></div><div></div>
+
+                        <div class="vflex gap" style="grid-column: 1 / span 2">
+                            <button id="btn_brighten">
+                                Brighten
+                            </button>
+                            <button id="btn_dim">
+                                Dim
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -331,6 +342,10 @@
                 return true;
             }
 
+            async function uploadCurrentColorToLamp(transition_steps) {
+                return await uploadColorToLamp(current_r, current_g, current_b, transition_steps);
+            }
+
             async function getCurrentColor() {
                 const resp = await fetch('/solid-color/current', { method: 'GET' });
                 if (resp.ok) {
@@ -439,6 +454,20 @@
 
             btn_save_as_template.onclick = () => {
                 saveColorAsTemplate();
+            };
+
+            btn_brighten.onclick = () => {
+                const v = Math.min(current_v + 0.05, 1.0);
+                updateCurrentColorHsv(current_h, current_s, v);
+
+                uploadCurrentColorToLamp(5);
+            };
+
+            btn_dim.onclick = () => {
+                const v = Math.max(current_v - 0.05, 0.0);
+                updateCurrentColorHsv(current_h, current_s, v);
+
+                uploadCurrentColorToLamp(5);
             };
 
             drawColorSpace();
