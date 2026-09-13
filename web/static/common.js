@@ -1,9 +1,16 @@
+const FRAME_COLS = 30;
+const FRAME_ROWS = 32;
+
 btn_mode_immediate.onclick = () => {
     window.location.href = '/';
 };
 
 btn_mode_template.onclick = () => {
     window.location.href = '/template';
+};
+
+btn_mode_matrix.onclick = () => {
+    window.location.href = '/matrix';
 };
 
 btn_mode_solid_color.onclick = () => {

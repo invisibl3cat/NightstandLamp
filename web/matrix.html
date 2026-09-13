@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Nightstand Lamp++</title>
+        <link rel="stylesheet" href="/static/styles.css">
+    </head>
+
+    <body>
+        <div id="tainer">
+            <div id="header">
+                <img class="flexed" src="/static/lamp.png" />
+                Nightstand Lamp++
+            </div>
+
+            <div id="mode-switcher">
+                <button class="mode-switcher-button" id="btn_mode_immediate">
+                    Set image
+                </button>
+
+                <button class="mode-switcher-button" id="btn_mode_solid_color">
+                    Solid color
+                </button>
+
+                <button class="mode-switcher-button active" id="btn_mode_matrix">
+                    Matrix
+                </button>
+
+                <button class="mode-switcher-button" id="btn_mode_template">
+                    Pick from template
+                </button>
+
+                <button class="mode-switcher-button" id="btn_mode_switch_off">
+                    Switch off
+                </button>
+            </div>
+
+            <div class="vflex gap flex1">
+                <div id="matrix_cells" class="flex1"></div>
+
+                <div class="hflex gap">
+                    <button id="btn_clear_matrix">
+                        Clear
+                    </button>
+                </div>
+
+                <div id="mat_color_picker_outer" class="color-picker-tainer flex1">
+                    <div class="color-picker-block">
+                        <canvas id="color_space" width=500 height=500></canvas>
+                        <canvas id="value_bar" width=10 height=500></canvas>
+                    </div>
+
+                    <div id="sc_rgb_hsv">
+                        <span>R</span> <input type="number" min="0" max="255" id="color_r"/>
+                        <span>G</span> <input type="number" min="0" max="255" id="color_g" />
+                        <span>B</span> <input type="number" min="0" max="255" id="color_b" />
+
+                        <div class="v-spacer"></div><div></div>
+
+                        <span>H</span> <input type="number" min="0" max="359" id="color_h"/>
+                        <span>S</span> <input type="number" min="0" max="100" id="color_s" />
+                        <span>V</span> <input type="number" min="0" max="100" id="color_v" />
+
+                        <div class="v-spacer"></div><div></div>
+
+                        <canvas id="color_picker_preview" class="color-picker-preview" width=1 height=1></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-buttons">
+                <div class="hflex gap">
+                    <button id='btn_upload_to_lamp' class="flex1">
+                        Upload to lamp!
+                    </button>
+                    <button id='btn_upload_to_lamp_smoothly' class="flex1">
+                        Upload to lamp smoothly!
+                    </button>
+                </div>
+
+                <button id='btn_save_as_template'>
+                    Save as template
+                </button>
+            </div>
+
+            <div id="error_message_box" class="error-message"></div>
+        </div>
+
+        <script src="/static/common.js"></script>
+        <script src="/static/color.js"></script>
+
+        <script>
+            const PIXELS = new Uint8Array(3 * FRAME_COLS * FRAME_ROWS);
+            const CELLS = [];
+
+            function disableMouseAction() {
+                return false;
+            }
+
+            function getCellColorBytes(cellIdx) {
+                const r = PIXELS[3 * cellIdx];
+                const g = PIXELS[3 * cellIdx + 1];
+                const b = PIXELS[3 * cellIdx + 2];
+
+                return [r, g, b];
+            }
+
+            function getCellColor(cellIdx) {
+                const [r, g, b] = getCellColorBytes(cellIdx);
+
+                return `rgb(${r}, ${g}, ${b})`;
+            }
+
+            function setCellColor(cellIdx, r, g, b) {
+                PIXELS[3 * cellIdx] = r;
+                PIXELS[3 * cellIdx + 1] = g;
+                PIXELS[3 * cellIdx + 2] = b;
+            }
+
+            function createMatrixCells() {
+                matrix_cells.style.display = 'grid';
+                matrix_cells.style.gridTemplateColumns = `repeat(${FRAME_COLS}, auto)`;
+                matrix_cells.style.height = '100%';
+
+                for (let idx = 0; idx < FRAME_COLS * FRAME_ROWS; idx++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('matrix-cell');
+                    cell.style.backgroundColor = getCellColor(idx);
+
+                    const updater = (r, g, b) => {
+                        setCellColor(idx, r, g, b);
+
+                        cell.style.backgroundColor = getCellColor(idx);
+                    };
+
+                    cell.onmousedown = (ev) => {
+                        if      (ev.buttons === 1) updater(current_r, current_g, current_b);
+                        else if (ev.buttons === 2) updater(0, 0, 0);
+                        else if (ev.buttons === 4) {
+                            const [r, g, b] = getCellColorBytes(idx);
+                            updateCurrentColorRgb(r, g, b);
+                        }
+                    };
+                    cell.onmouseenter = (ev) => {
+                        if      (ev.buttons === 1) updater(current_r, current_g, current_b);
+                        else if (ev.buttons === 2) updater(0, 0, 0);
+                    }
+                    cell.oncontextmenu = disableMouseAction;
+                    cell.ondragstart = disableMouseAction;
+
+                    matrix_cells.appendChild(cell);
+                    CELLS.push(cell);
+                }
+            }
+
+            async function uploadMatrixToLamp(transition_steps) {
+                const endpoint = `/upload-image/static/${transition_steps}`;
+
+                try {
+                    const resp = await postImage(endpoint, PIXELS);
+                    if (resp.ok) {
+                        console.log('uploaded');
+                    } else {
+                        const reason = await resp.text();
+
+                        displayError(reason);
+                        console.error(reason);
+                    }
+                } catch(e) {
+                    const reason = e.toString();
+
+                    displayError(reason);
+                    console.error(e.toString());
+                }
+            }
+
+            async function saveMatrixAsTemplate() {
+                const name = askForTemplateName();
+                if (!name) return;
+
+                try {
+                    const resp = await postImage(`/template/save/${name}`, PIXELS);
+                    if (resp.ok) {
+                        console.log('saved');
+                    } else {
+                        const reason = await resp.text();
+
+                        displayError(reason);
+                        console.error(reason);
+                    }
+                } catch(e) {
+                    const reason = e.toString();
+
+                    displayError(reason);
+                    console.error(e.toString());
+                }
+            }
+
+            btn_clear_matrix.onclick = () => {
+                for (let idx = 0; idx < PIXELS.length; idx++) {
+                    PIXELS[idx] = 0;
+                }
+                for (let idx = 0; idx < CELLS.length; idx++) {
+                    CELLS[idx].style.backgroundColor = getCellColor(idx);
+                }
+            }
+
+            btn_upload_to_lamp.onclick = () => {
+                uploadMatrixToLamp(1);
+            };
+
+            btn_upload_to_lamp_smoothly.onclick = () => {
+                uploadMatrixToLamp(30);
+            };
+
+            btn_save_as_template.onclick = () => {
+                saveMatrixAsTemplate();
+            };
+
+            createMatrixCells();
+            drawColorSpace();
+            updateCurrentColorRgb(128, 255, 255);
+
+            const observer = new ResizeObserver(() => {
+                let h = mat_color_picker_outer.getBoundingClientRect().height;
+                h = clamp(h, 0, MAX_CTRL_HEIGHT_PX);
+                color_space.style.height = `${h}px`;
+                value_bar.style.height = `${h}px`;
+            });
+            observer.observe(mat_color_picker_outer);
+        </script>
+    </body>
+</html>

@@ -223,6 +223,9 @@ async fn route_solid_color_current(
     respond_json(json).into_response()
 }
 
+async fn route_matrix() -> Response<Body> {
+    serve_html_file("web/matrix.html")
+}
 
 async fn route_template() -> Response<Body> {
     serve_html_file("web/template.html")
@@ -497,6 +500,7 @@ async fn main() {
         .route("/solid-color", axum::routing::get(route_solid_color))
         .route("/solid-color/{r}/{g}/{b}/{n_steps}", axum::routing::post(route_solid_color_upload))
         .route("/solid-color/current", axum::routing::get(route_solid_color_current))
+        .route("/matrix", axum::routing::get(route_matrix))
         .route("/template", axum::routing::get(route_template))
         .route("/template/delete/{name}", axum::routing::post(route_template_delete))
         .route("/template/list", axum::routing::get(route_template_list))
