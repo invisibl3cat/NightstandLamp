@@ -241,6 +241,10 @@ div {
     gap: var(--gap-a);
 }
 
+.flex-items-center {
+    align-items: center;
+}
+
 .gap {
     gap: var(--gap-a);
 }
